@@ -1,0 +1,6 @@
+[theme]
+primaryColor = "#860038"         # Hartnell Magenta
+backgroundColor = "#f0f0f5"      # Soft background
+secondaryBackgroundColor = "#d0d3d9"  # Light gray card background
+textColor = "#231f20"            # Charcoal text
+font = "sans serif"
