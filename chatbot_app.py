@@ -10,11 +10,122 @@ from langchain.schema import HumanMessage, AIMessage
 # Load environment variables
 load_dotenv()
 
-# Setup
-st.set_page_config(page_title="Hartnell College Advisor", page_icon="🎓")
-st.title("Hartnell College Advisor")
+# Custom CSS - Dark Red and Yellow Gradient with Font Fix
+custom_css = """
+<style>
+    .stApp {
+        background: linear-gradient(-45deg, #8B0000, #AA4A00, #665c00, #8B0000);
+        background-size: 400% 400%;
+        animation: gradient 15s ease infinite;
+        color: #f0f0f0;
+        font-family: 'Segoe UI', 'Helvetica Neue', sans-serif;
+        font-size: 16px;
+    }
 
-# Initialize session state for memory and messages only
+    @keyframes gradient {
+        0% {background-position: 0% 50%;}
+        50% {background-position: 100% 50%;}
+        100% {background-position: 0% 50%;}
+    }
+
+    .stChatMessage {
+        border-radius: 12px;
+        padding: 1.2rem 1.5rem;
+        margin: 1rem auto;
+        font-size: 1rem;
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.4);
+        max-width: 900px;
+        line-height: 1.6;
+        font-family: inherit;
+    }
+
+    .stChatMessage[data-testid="user-message"] {
+        background: #2a2a2a !important;
+        color: #f0f0f0 !important;
+    }
+
+    .stChatMessage[data-testid="assistant-message"] {
+        background: #3c3c3c !important;
+        color: #f0f0f0 !important;
+    }
+
+    .stChatMessage ul {
+        padding-left: 1.5rem;
+        margin-bottom: 1rem;
+    }
+
+    .stChatMessage li {
+        margin: 0.4rem 0;
+    }
+
+    .stTextInput {
+        border-radius: 25px;
+        background: #222 !important;
+        color: white !important;
+        border: 2px solid #444;
+        font-family: inherit;
+    }
+
+    .css-1d391kg {
+        background: #1a1a1a !important;
+        color: #eee !important;
+    }
+
+    .stButton>button {
+        background: linear-gradient(135deg, #b71c1c, #f57f17);
+        color: white;
+        border-radius: 25px;
+        padding: 0.5rem 2rem;
+        border: none;
+        transition: all 0.3s ease;
+        font-family: inherit;
+    }
+
+    .stButton>button:hover {
+        background: linear-gradient(135deg, #f57f17, #b71c1c);
+        transform: translateY(-2px);
+        box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+    }
+
+    .stTitle {
+        color: white;
+        text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.2);
+        font-family: 'Segoe UI', 'Helvetica Neue', sans-serif;
+        padding-bottom: 2rem;
+        border-bottom: 2px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .stMarkdown {
+        color: white;
+        font-family: inherit;
+    }
+
+    .glass-container {
+        background: rgba(255, 255, 255, 0.1);
+        backdrop-filter: blur(10px);
+        border-radius: 15px;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        padding: 20px;
+        margin: 10px 0;
+    }
+</style>
+"""
+
+# Page config
+st.set_page_config(page_title="Hartnell College Advisor", page_icon="🎓", layout="wide")
+
+# Inject CSS
+st.markdown(custom_css, unsafe_allow_html=True)
+
+# Header
+col1, col2, col3 = st.columns([1, 6, 1])
+with col2:
+    st.markdown('<div class="glass-container">', unsafe_allow_html=True)
+    st.title("🎓 Hartnell College Advisor")
+    st.markdown("---")
+    st.markdown('</div>', unsafe_allow_html=True)
+
+# Memory
 if "memory" not in st.session_state:
     st.session_state.memory = ConversationBufferMemory(
         memory_key="chat_history",
@@ -24,13 +135,11 @@ if "memory" not in st.session_state:
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
-# AWS Setup
+# AWS Bedrock setup
 @st.cache_resource
 def setup_bedrock():
     try:
-        session = boto3.Session(
-            profile_name='Hackathon20'
-        )
+        session = boto3.Session(profile_name='Hackathon20')
         client = session.client(
             service_name='bedrock-agent-runtime',
             region_name='us-west-2'
@@ -44,29 +153,26 @@ bedrock = setup_bedrock()
 kb_id = os.getenv('KNOWLEDGE_BASE_ID')
 model_id = os.getenv('BEDROCK_MODEL_ID')
 
-# Display chat history
-for message in st.session_state.messages:
-    with st.chat_message(message["role"]):
-        st.text(message["content"])
+# Chat container
+chat_container = st.container()
+with chat_container:
+    for message in st.session_state.messages:
+        with st.chat_message(message["role"]):
+            st.write(message["content"])  # Use plain text
 
 # Chat input
 if prompt := st.chat_input("How can I help you with your educational journey?"):
-    # Add user message
     st.session_state.messages.append({"role": "user", "content": prompt})
     with st.chat_message("user"):
-        st.text(prompt)
-    
-    # Get AI response
+        st.write(prompt)
+
     with st.chat_message("assistant"):
         try:
-            # Get chat history from LangChain memory
             chat_history = st.session_state.memory.load_memory_variables({})
-            history_str = ""
-            if chat_history.get("chat_history"):
-                history_str = "\n".join([
-                    f"{msg.type}: {msg.content}" 
-                    for msg in chat_history["chat_history"]
-                ])
+            history_str = "\n".join(
+                f"{msg.type}: {msg.content}"
+                for msg in chat_history.get("chat_history", [])
+            )
 
             system_prompt = """You are a helpful Hartnell College advisor. Use the knowledge base to provide accurate information about courses and programs. If you're not sure about something, say so and suggest talking to a human advisor or say exactly what you don't know.
 
@@ -112,11 +218,8 @@ Use the conversation history to track what you know about the student. Ask about
                 user_message=prompt
             )
 
-            # Call Bedrock Knowledge Base
             response = bedrock.retrieve_and_generate(
-                input={
-                    'text': full_prompt
-                },
+                input={'text': full_prompt},
                 retrieveAndGenerateConfiguration={
                     'type': 'KNOWLEDGE_BASE',
                     'knowledgeBaseConfiguration': {
@@ -125,76 +228,45 @@ Use the conversation history to track what you know about the student. Ask about
                     }
                 }
             )
-            
-            # Get the response stream
             stream = response['output']['text']
-            
+
             def clean_text(text):
-                # Replace USD with $ and handle formatting
-                text = text.replace('USD ', '$')  # Replace USD with $
-                text = text.replace(',', '')      # Remove commas from numbers
-                
-                # Preserve or enhance formatting
-                lines = text.split('\n')
-                formatted_lines = []
-                
-                for line in lines:
-                    # Preserve empty lines for spacing
-                    if not line.strip():
-                        formatted_lines.append('')
-                        continue
-                    
-                    # Clean up the line while preserving dashes and asterisks
-                    cleaned_line = ' '.join(line.split())
-                    formatted_lines.append(cleaned_line)
-                
-                # Join with newlines to preserve formatting
-                return '\n'.join(formatted_lines)
-            
-            # Clean the stream text
+                text = text.replace('USD ', '$').replace(',', '')
+                return '\n'.join(' '.join(line.split()) if line.strip() else '' for line in text.split('\n'))
+
             stream = clean_text(stream)
-            
-            # Process the stream with streaming effect
             message_placeholder = st.empty()
             full_response = ""
-            
-            # Split by newlines and words to maintain formatting during streaming
+
             paragraphs = stream.split('\n')
             for paragraph in paragraphs:
                 words = paragraph.split()
                 for i in range(0, len(words), 3):
                     chunk = " ".join(words[i:i+3])
                     full_response += chunk + " "
-                    try:
-                        message_placeholder.text(full_response + "▌")
-                    except Exception:
-                        message_placeholder.text(full_response)
-                    time.sleep(0.1)
-                full_response += "\n"  # Add newline after each paragraph
-                try:
-                    message_placeholder.text(full_response + "▌")
-                except Exception:
-                    message_placeholder.text(full_response)
-                time.sleep(0.1)
-            
-            # Display final response without cursor
-            message_placeholder.text(full_response)
-            
-            # Add to chat history
+                    message_placeholder.write(full_response + "▌")
+                    time.sleep(0.05)
+                full_response += "\n"
+                message_placeholder.write(full_response + "▌")
+                time.sleep(0.05)
+
+            message_placeholder.write(full_response)
             st.session_state.messages.append({"role": "assistant", "content": full_response})
-            
-            # Update LangChain memory
-            st.session_state.memory.save_context(
-                {"input": prompt},
-                {"output": full_response}
-            )
-            
+            st.session_state.memory.save_context({"input": prompt}, {"output": full_response})
+
         except Exception as e:
             st.error(f"Error: {str(e)}")
-            st.error("Please check your AWS credentials and knowledge base configuration")
 
-# Clear conversation button
-if st.sidebar.button("Clear Conversation"):
-    st.session_state.messages = []
-    st.session_state.memory.clear()
-    st.rerun()
+# Sidebar
+with st.sidebar:
+    st.markdown('<div class="glass-container">', unsafe_allow_html=True)
+    st.markdown("### Chat Controls")
+    if st.button("🗑️ Clear Conversation", key="clear_chat"):
+        st.session_state.messages = []
+        st.session_state.memory.clear()
+        st.rerun()
+
+    st.markdown("---")
+    st.markdown("### About")
+    st.markdown("This AI advisor helps students explore educational and career opportunities at Hartnell College.")
+    st.markdown('</div>', unsafe_allow_html=True)
