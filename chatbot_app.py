@@ -49,26 +49,12 @@ custom_css = """
         color: #f0f0f0 !important;
     }
 
-    .stChatMessage ul {
-        padding-left: 1.5rem;
-        margin-bottom: 1rem;
-    }
-
-    .stChatMessage li {
-        margin: 0.4rem 0;
-    }
-
     .stTextInput {
         border-radius: 25px;
         background: #222 !important;
         color: white !important;
         border: 2px solid #444;
         font-family: inherit;
-    }
-
-    .css-1d391kg {
-        background: #1a1a1a !important;
-        color: #eee !important;
     }
 
     .stButton>button {
@@ -93,11 +79,6 @@ custom_css = """
         font-family: 'Segoe UI', 'Helvetica Neue', sans-serif;
         padding-bottom: 2rem;
         border-bottom: 2px solid rgba(255, 255, 255, 0.1);
-    }
-
-    .stMarkdown {
-        color: white;
-        font-family: inherit;
     }
 
     .glass-container {
@@ -158,7 +139,7 @@ chat_container = st.container()
 with chat_container:
     for message in st.session_state.messages:
         with st.chat_message(message["role"]):
-            st.write(message["content"])  # Use plain text
+            st.write(message["content"])
 
 # Chat input
 if prompt := st.chat_input("How can I help you with your educational journey?"):
@@ -200,11 +181,11 @@ FORMATTING RULES:
 - Use newlines to separate different topics or points
 - Start new sections with a blank line
 - When listing items, put each on a new line with a dash (-)
-- Format salary information with ($) instead of USD (Example: $75000 per year)
+- Format salary information with ($) instead of USD (Example: $75,000 per year)
+- Format salary ranges using: from $XX,XXX to $YY,YYY
 - Use clear section headers followed by a newline
 - Keep paragraphs short and readable
 - Use dashes (-) for lists and asterisks (*) for emphasis
-- when talking about salary of careers, use ($) instead of USD
 
 CONVERSATION HISTORY:
 {history}
@@ -231,8 +212,50 @@ Use the conversation history to track what you know about the student. Ask about
             stream = response['output']['text']
 
             def clean_text(text):
-                text = text.replace('USD ', '$').replace(',', '')
-                return '\n'.join(' '.join(line.split()) if line.strip() else '' for line in text.split('\n'))
+                import re
+                text = text.replace('USD', '$').replace('—', ' to ').replace('toover', 'to over ')
+                lines = text.split('\n')
+                cleaned_lines = []
+
+                for line in lines:
+                    original_line = line.strip()
+
+                    # Fix malformed average/range lines
+                    pattern1 = re.search(r'(\d{4,6})\s*average\s*\(\s*range\s*(\d{4,6})[^0-9]+(\d{4,6})', original_line, re.IGNORECASE)
+                    if pattern1:
+                        avg = int(pattern1.group(1))
+                        low = int(pattern1.group(2))
+                        high = int(pattern1.group(3))
+                        fixed = f"Average salary: ${avg:,} (range: ${low:,}–${high:,})"
+                        cleaned_lines.append(fixed)
+                        continue
+
+                    # Fix salary ranges like 46000 to 203000
+                    pattern2 = re.search(r'(\d{4,6})\s+to\s+(\d{4,6})', original_line)
+                    if pattern2 and "salary" in original_line.lower():
+                        low = int(pattern2.group(1))
+                        high = int(pattern2.group(2))
+                        fixed = f"Salary range: from ${low:,} to ${high:,}"
+                        cleaned_lines.append(fixed)
+                        continue
+
+                    # Fix average salary
+                    pattern3 = re.search(r'average\s*[:=]?\s*\$?(\d{4,6})', original_line, re.IGNORECASE)
+                    if pattern3:
+                        avg = int(pattern3.group(1))
+                        fixed = f"Average salary: ${avg:,}"
+                        cleaned_lines.append(fixed)
+                        continue
+
+                    # Format standalone salaries
+                    dollar_nums = re.findall(r'\$?(\d{4,6})', original_line)
+                    if dollar_nums and "salary" in original_line.lower():
+                        formatted = re.sub(r'\$?(\d{4,6})', lambda m: f"${int(m.group(1)):,}", original_line)
+                        cleaned_lines.append(formatted)
+                    else:
+                        cleaned_lines.append(original_line)
+
+                return '\n'.join(cleaned_lines)
 
             stream = clean_text(stream)
             message_placeholder = st.empty()
